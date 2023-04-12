@@ -5,12 +5,8 @@ import numpy as np
 from scipy import optimize
 
 
-def logistic_function(x, a, k, C):
-    return C / (1 + a * np.exp(-k * x))
-
-
-def exponential_function(x, a, k, c):
-    return a * np.exp(k * x) + c
+def exponential_function(x, a, k):
+    return a * np.exp(k * x)
 
 
 def linear_function(x, a, b):
@@ -52,18 +48,3 @@ class Model:
             )
             for x in x_values
         ]
-
-
-def main():
-    x_values = list(range(10))
-    y_values = list(map(lambda x: 100 / (1 + math.exp(-2 * x)), x_values))
-
-    model = Model(
-        x_values, y_values, logistic_function, initial_regression_parameters=[1, 1, 50]
-    )
-    print(model.optimal_parameters)
-    print(model.get_y_values(range(-10, 10)))
-
-
-if __name__ == "__main__":
-    main()

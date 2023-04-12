@@ -5,13 +5,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from pandas import DataFrame
 
-from model import (
-    Model,
-    exponential_function,
-    linear_function,
-    logistic_function,
-    polynomial_2_function,
-)
+from model import Model, exponential_function, linear_function, polynomial_2_function
 
 
 def load_data_from_filename(base_path: str, filename: str) -> DataFrame:
@@ -55,17 +49,6 @@ def smoothen_graph(y_values, k):
     return smoothened_values
 
 
-def derive_graph(x_values, y_values):
-    derived_values = []
-
-    for i in range(len(x_values) - 1):
-        derived_values.append(
-            (y_values[i + 1] - y_values[i]) / (x_values[i + 1] - x_values[i])
-        )
-
-    return derived_values
-
-
 def plot_all_data(fuel_type_counts, fuel_type_years, co2_emission_data_frame):
     fuel_type_axes = plt.subplot(2, 1, 1)
     fuel_type_axes.set_title("Kjøretøy etter drivstofftype")
@@ -88,47 +71,48 @@ def plot_all_data(fuel_type_counts, fuel_type_years, co2_emission_data_frame):
         label="CO2-utslipp",
     )
 
+    k = 3
+    co2_emission_smoothened = smoothen_graph(
+        co2_emission_data_frame["Utslipp til luft (1 000 tonn CO2-ekvivalenter)"], k
+    )
+    co2_emission_axes.plot(
+        co2_emission_data_frame["År"][k : len(co2_emission_data_frame["År"]) - k],
+        co2_emission_smoothened,
+        label="Glidende gjennomsnitt",
+    )
+
     co2_emission_axes.grid()
     co2_emission_axes.legend()
 
     plt.show()
 
 
-def plot_fuel_types_derived(fuel_types: list[str], fuel_type_counts, fuel_type_years):
-    for fuel_type in fuel_types:
-        counts_derived = derive_graph(fuel_type_years, fuel_type_counts[fuel_type])
-        plt.plot(fuel_type_years[:-1], counts_derived, label=fuel_type + " derivert")
+def plot_fuel_type_model(
+    fuel_type,
+    fuel_type_years,
+    fuel_type_counts,
+    regression_target,
+    num_years,
+    model_logger_callback,
+):
+    model = Model(
+        list(range(len(fuel_type_years))),
+        fuel_type_counts[fuel_type],
+        regression_target,
+    )
 
-        # counts_derived_smoothened = smoothen_graph(counts_derived, 2)
-        # plt.plot(
-        #     fuel_type_years[2:-3],
-        #     counts_derived_smoothened,
-        #     label=fuel_type + " derivert (glidende gjennomsnitt)",
-        # )
+    model_logger_callback(model.optimal_parameters)
 
-    plt.title("Drivstofftyper derivert")
-    plt.xlabel("År")
-    plt.ylabel("Vekstfart")
-    plt.grid()
-    plt.legend()
-    plt.axhline(y=0, color="black")
-    plt.show()
-
-
-def plot_co2_emission_smoothened(co2_emission_data_frame, k, plot_normal_graph=True):
-    emission = co2_emission_data_frame["Utslipp til luft (1 000 tonn CO2-ekvivalenter)"]
-    years = co2_emission_data_frame["År"]
-
-    if plot_normal_graph:
-        plt.plot(years, emission, label="CO2-utslipp")
-
-    smoothened_emission = smoothen_graph(emission, k)
     plt.plot(
-        years[k : len(years) - k], smoothened_emission, label="Glidende gjennomsnitt"
+        np.linspace(2008, 2008 + num_years, 1000),
+        model.get_y_values(np.linspace(0, num_years, 1000), max_value=2_906_012),
+        label=f"{fuel_type} modell",
     )
 
     plt.legend()
     plt.grid()
+    plt.xlabel("År")
+    plt.ylabel("Antall registrerte kjøretøy")
     plt.show()
 
 
@@ -148,56 +132,42 @@ def main() -> None:
 
     plot_all_data(fuel_type_counts, fuel_type_years, co2_emission_data_frame)
 
-    # plot_fuel_types_derived(
-    #     ["Bensin", "Elektrisk", "Diesel"], fuel_type_counts, fuel_type_years
-    # )
-
-    # plot_co2_emission_smoothened(co2_emission_data_frame, 4)
-
-    # with open("temp.csv", "w") as f:
-    #     for year, count in zip(fuel_type_years, fuel_type_counts["Elektrisk"]):
-    #         f.write(f"{year-2008},{count}\n")
+    # Plot regresjonsmodeller
 
     num_years = 52
 
-    electric_model = Model(
-        range(len(fuel_type_years)),
-        fuel_type_counts["Elektrisk"],
+    plot_fuel_type_model(
+        "Elektrisk",
+        fuel_type_years,
+        fuel_type_counts,
         exponential_function,
-    )
-    plt.plot(
-        np.linspace(2008, 2008 + num_years, 1000),
-        electric_model.get_y_values(
-            np.linspace(0, num_years, 1000), max_value=2_906_012
+        num_years,
+        lambda optimal_parameters: print(
+            f"\nElektrisk modell\nf(x) = {optimal_parameters[0]} * e^({optimal_parameters[1]} * x)"
         ),
-        label="Elektrisk modell",
     )
 
-    petrol_model = Model(
-        range(len(fuel_type_years)), fuel_type_counts["Bensin"], linear_function
-    )
-    plt.plot(
-        np.linspace(2008, 2008 + num_years, 1000),
-        petrol_model.get_y_values(np.linspace(0, num_years, 1000)),
-        label="Bensin modell",
-    )
-
-    diesel_model = Model(
-        range(len(fuel_type_years)), fuel_type_counts["Diesel"], polynomial_2_function
-    )
-    plt.plot(
-        np.linspace(2008, 2008 + num_years, 1000),
-        diesel_model.get_y_values(np.linspace(0, num_years, 1000)),
-        label="Diesel modell",
+    plot_fuel_type_model(
+        "Bensin",
+        fuel_type_years,
+        fuel_type_counts,
+        linear_function,
+        num_years,
+        lambda optimal_parameters: print(
+            f"\nBensin modell\nf(x) = {optimal_parameters[0]}x + {optimal_parameters[1]}"
+        ),
     )
 
-    plt.legend()
-    plt.grid()
-    plt.xlabel("År")
-    plt.ylabel("Antall registrerte kjøretøy")
-    plt.title("Utvikling av registrerte kjøretøy (modeller)")
-
-    plt.show()
+    plot_fuel_type_model(
+        "Diesel",
+        fuel_type_years,
+        fuel_type_counts,
+        polynomial_2_function,
+        num_years,
+        lambda optimal_parameters: print(
+            f"\nDiesel modell\nf(x) = {optimal_parameters[0]}x^2 + {optimal_parameters[1]}x + {optimal_parameters[2]}"
+        ),
+    )
 
 
 if __name__ == "__main__":
